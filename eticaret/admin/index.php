@@ -4,8 +4,8 @@ include '../baglanti.php';
 include '../includes/header.php';
 
 // Yetki kontrolü
-if (!isset($_SESSION['kullanici_id'])) {
-    header("Location: /giris.php");
+if (!isset($_SESSION['kullanici_id']) || empty($_SESSION['admin'])) {
+    header("Location: /eticaret/giris.php");
     exit();
 }
 
@@ -61,6 +61,7 @@ try {
         <a href="/eticaret/admin/urun_ekle.php"   class="btn btn-primary">➕ Yeni Ürün Ekle</a>
         <a href="/eticaret/admin/urun_listesi.php" class="btn btn-dark">📝 Ürünleri Yönet</a>
         <a href="/eticaret/admin/siparisler.php"   class="btn btn-dark">🧾 Siparişleri Yönet</a>
+        <a href="/eticaret/admin/kullanicilar.php" class="btn btn-dark">👥 Kullanıcılar</a>
         <a href="/eticaret/index.php" target="_blank" class="btn btn-ghost">👁️ Siteyi Önizle</a>
         <a href="/eticaret/cikis.php" class="btn btn-ghost" style="color:var(--danger); border-color:var(--danger);">🚪 Çıkış</a>
     </div>

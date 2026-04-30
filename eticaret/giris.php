@@ -15,6 +15,7 @@ $hata = "";
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $eposta = trim($_POST['eposta'] ?? '');
     $sifre  = $_POST['sifre'] ?? '';
+    $beniHatirla = isset($_POST['beni_hatirla']);
 
     if (empty($eposta) || empty($sifre)) {
         $hata = "E-posta ve şifre alanları boş bırakılamaz.";
@@ -46,6 +47,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                                           : $kullanici['KullaniciAdi'];
             // Admin kontrolü (KullaniciAdi == "admin" ya da ayrı kolon varsa)
             $_SESSION['admin'] = ($kullanici['KullaniciAdi'] === 'admin');
+
+            if ($beniHatirla) {
+                try {
+                    $selector  = bin2hex(random_bytes(8));
+                    $validator = bin2hex(random_bytes(24));
+                    $hash      = password_hash($validator, PASSWORD_DEFAULT);
+                    $sonKullanma = date('Y-m-d H:i:s', time() + (86400 * 30));
+
+                    $db->prepare("DELETE FROM RememberTokens WHERE KullaniciID = ?")
+                       ->execute([$kullanici['KullaniciID']]);
+
+                    $db->prepare(
+                        "INSERT INTO RememberTokens (KullaniciID, Selector, ValidatorHash, SonKullanma)
+                         VALUES (?, ?, ?, ?)"
+                    )->execute([$kullanici['KullaniciID'], $selector, $hash, $sonKullanma]);
+
+                    setcookie('remember_token', $selector . ':' . $validator, time() + (86400 * 30), '/');
+                } catch (PDOException $e) {
+                    // RememberTokens tablosu yoksa girisi engelleme.
+                }
+            } else {
+                setcookie('remember_token', '', time() - 3600, '/');
+            }
 
             header("Location: /eticaret/index.php");
             exit();
@@ -83,6 +107,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <input type="password" name="sifre" class="form-control"
                        placeholder="••••••••" required>
             </div>
+            <label style="display:flex; gap:8px; align-items:center; margin-bottom:14px; color:var(--muted); font-size:.88rem;">
+                <input type="checkbox" name="beni_hatirla" value="1" <?php echo isset($_POST['beni_hatirla']) ? 'checked' : ''; ?>>
+                Beni hatırla
+            </label>
             <button type="submit" class="btn btn-primary btn-full btn-lg" style="margin-top:8px;">Giriş Yap</button>
         </form>
 

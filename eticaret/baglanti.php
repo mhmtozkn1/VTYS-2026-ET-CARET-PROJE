@@ -24,3 +24,34 @@ try {
             <p>Veritabanına bağlanılamadı. Lütfen daha sonra tekrar deneyin.</p>
          </div>");
 }
+
+// Beni hatirla: aktif oturum yoksa kalici cookie ile tekrar giris yap.
+if (session_status() === PHP_SESSION_ACTIVE && empty($_SESSION['kullanici_id']) && !empty($_COOKIE['remember_token'])) {
+    $parcalar = explode(':', $_COOKIE['remember_token'], 2);
+    if (count($parcalar) === 2) {
+        [$selector, $validator] = $parcalar;
+        if ($selector !== '' && $validator !== '') {
+            try {
+                $q = $db->prepare(
+                    "SELECT rt.KullaniciID, rt.ValidatorHash, rt.SonKullanma, k.KullaniciAdi, k.AdSoyad
+                     FROM RememberTokens rt
+                     JOIN Kullanicilar k ON k.KullaniciID = rt.KullaniciID
+                     WHERE rt.Selector = ?"
+                );
+                $q->execute([$selector]);
+                $token = $q->fetch();
+
+                if ($token && strtotime($token['SonKullanma']) > time() && password_verify($validator, $token['ValidatorHash'])) {
+                    session_regenerate_id(true);
+                    $_SESSION['kullanici_id'] = (int)$token['KullaniciID'];
+                    $_SESSION['ad_soyad'] = !empty($token['AdSoyad']) ? $token['AdSoyad'] : $token['KullaniciAdi'];
+                    $_SESSION['admin'] = ($token['KullaniciAdi'] === 'admin');
+                } else {
+                    setcookie('remember_token', '', time() - 3600, '/');
+                }
+            } catch (PDOException $e) {
+                // RememberTokens tablosu yoksa sessizce gec.
+            }
+        }
+    }
+}

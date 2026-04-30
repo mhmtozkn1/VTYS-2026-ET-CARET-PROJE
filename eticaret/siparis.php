@@ -19,6 +19,8 @@ $kullaniciID = $_SESSION['kullanici_id'];
 $sepet       = $_SESSION['sepet']; // [urunID => miktar]
 $hata        = "";
 $siparisID   = null;
+$kuponBilgi  = $_SESSION['kupon'] ?? null;
+$indirimTutari = 0;
 
 // ── Sipariş oluştur ──────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['onayla'])) {
@@ -36,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['onayla'])) {
     $toplam = 0;
     foreach ($sepet as $uid => $miktar) {
         if (isset($urunMap[$uid])) {
+            if (isset($urunMap[$uid]['Stok']) && (int)$urunMap[$uid]['Stok'] < (int)$miktar) {
+                throw new RuntimeException($urunMap[$uid]['UrunAdi'] . " için yeterli stok yok.");
+            }
             $toplam += $urunMap[$uid]['Fiyat'] * $miktar;
         }
     }
@@ -43,10 +48,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['onayla'])) {
     try {
         $db->beginTransaction();
 
+        if ($kuponBilgi) {
+            if ($toplam < (float)$kuponBilgi['MinSepetTutari']) {
+                throw new RuntimeException("Kupon için minimum sepet tutarına ulaşılamadı.");
+            }
+            if ($kuponBilgi['IndirimTipi'] === 'yuzde') {
+                $indirimTutari = $toplam * ((float)$kuponBilgi['Deger'] / 100);
+            } else {
+                $indirimTutari = (float)$kuponBilgi['Deger'];
+            }
+            $indirimTutari = min($indirimTutari, $toplam);
+        }
+
+        $netTutar = max(0, $toplam - $indirimTutari);
+
         // Ana sipariş kaydı
         $db->prepare(
             "INSERT INTO Siparisler (KullaniciID, ToplamTutar, Durum) VALUES (?, ?, N'Beklemede')"
-        )->execute([$kullaniciID, $toplam]);
+        )->execute([$kullaniciID, $netTutar]);
 
         $siparisID = $db->lastInsertId();
 
@@ -62,6 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['onayla'])) {
                     $miktar,
                     $urunMap[$uid]['Fiyat']
                 ]);
+
+                if (isset($urunMap[$uid]['Stok'])) {
+                    $db->prepare("UPDATE Urunler SET Stok = Stok - ? WHERE UrunID = ?")
+                       ->execute([$miktar, $uid]);
+                }
             }
         }
 
@@ -69,10 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['onayla'])) {
 
         // Sepeti temizle
         $_SESSION['sepet'] = [];
+        unset($_SESSION['kupon']);
 
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         $db->rollBack();
-        $hata = "Sipariş oluşturulurken bir hata oluştu: " . $e->getMessage();
+        $hata = "Sipariş oluşturulurken bir hata oluştu: " . htmlspecialchars($e->getMessage());
         $siparisID = null;
     }
 }
@@ -93,11 +118,30 @@ if (!empty($_SESSION['sepet'])) {
     }
     foreach ($sepetGuncel as $uid => $miktar) {
         if (isset($urunMap[$uid])) {
+            if (isset($urunMap[$uid]['Stok']) && (int)$urunMap[$uid]['Stok'] < (int)$miktar) {
+                $hata = htmlspecialchars($urunMap[$uid]['UrunAdi']) . " ürünü için stok yetersiz. Sepeti güncelleyin.";
+            }
             $kalemler[] = ['urun' => $urunMap[$uid], 'miktar' => $miktar];
             $toplam += $urunMap[$uid]['Fiyat'] * $miktar;
         }
     }
 }
+
+if ($kuponBilgi && !$hata) {
+    if ($toplam >= (float)$kuponBilgi['MinSepetTutari']) {
+        if ($kuponBilgi['IndirimTipi'] === 'yuzde') {
+            $indirimTutari = $toplam * ((float)$kuponBilgi['Deger'] / 100);
+        } else {
+            $indirimTutari = (float)$kuponBilgi['Deger'];
+        }
+        $indirimTutari = min($indirimTutari, $toplam);
+    } else {
+        $kuponBilgi = null;
+        $indirimTutari = 0;
+    }
+}
+
+$netToplam = max(0, $toplam - $indirimTutari);
 ?>
 
 <?php if ($siparisID): ?>
@@ -162,11 +206,21 @@ if (!empty($_SESSION['sepet'])) {
         <?php endforeach; ?>
 
         <div style="display:flex; justify-content:space-between; align-items:center; padding-top:18px;">
-            <span style="font-family:'Syne',sans-serif; font-weight:700; font-size:1.1rem;">Toplam</span>
+            <span style="font-family:'Syne',sans-serif; font-weight:700; font-size:1.1rem;">Ara Toplam</span>
             <span style="font-family:'Syne',sans-serif; font-weight:800; font-size:1.8rem; color:var(--success);">
                 <?php echo number_format($toplam, 2, ',', '.'); ?> TL
             </span>
         </div>
+        <?php if ($kuponBilgi): ?>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; color:var(--success);">
+            <span>Kupon (<?php echo htmlspecialchars($kuponBilgi['Kod']); ?>)</span>
+            <span>-<?php echo number_format($indirimTutari, 2, ',', '.'); ?> TL</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-weight:700;">
+            <span>Ödenecek</span>
+            <span><?php echo number_format($netToplam, 2, ',', '.'); ?> TL</span>
+        </div>
+        <?php endif; ?>
     </div>
 
     <!-- Kullanıcı Bilgisi -->

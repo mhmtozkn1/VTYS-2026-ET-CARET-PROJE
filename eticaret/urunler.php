@@ -12,20 +12,37 @@ $where  = '';
 $params = [];
 
 if ($arama !== '') {
-    $where    = "WHERE UrunAdi LIKE ?";
+    $where    = "WHERE u.UrunAdi LIKE ?";
     $params[] = '%' . $arama . '%';
 }
 
 $orderBy = match($siralama) {
-    'ucuz'   => "Fiyat ASC",
-    'pahali' => "Fiyat DESC",
-    default  => "UrunID DESC",
+    'ucuz'   => "u.Fiyat ASC",
+    'pahali' => "u.Fiyat DESC",
+    default  => "u.UrunID DESC",
 };
 
-$sql    = "SELECT * FROM Urunler $where ORDER BY $orderBy";
-$sorgu  = $db->prepare($sql);
-$sorgu->execute($params);
-$urunler = $sorgu->fetchAll();
+$sql    = "SELECT u.*,
+                  COALESCE(y.OrtalamaPuan, 0) AS OrtalamaPuan,
+                  COALESCE(y.YorumSayisi, 0) AS YorumSayisi
+           FROM Urunler u
+           LEFT JOIN (
+               SELECT UrunID, AVG(CAST(Puan AS DECIMAL(10,2))) AS OrtalamaPuan, COUNT(*) AS YorumSayisi
+               FROM UrunYorumlari
+               GROUP BY UrunID
+           ) y ON y.UrunID = u.UrunID
+           $where
+           ORDER BY $orderBy";
+try {
+    $sorgu  = $db->prepare($sql);
+    $sorgu->execute($params);
+    $urunler = $sorgu->fetchAll();
+} catch (PDOException $e) {
+    $sql = "SELECT u.*, 0 AS OrtalamaPuan, 0 AS YorumSayisi FROM Urunler u $where ORDER BY $orderBy";
+    $sorgu  = $db->prepare($sql);
+    $sorgu->execute($params);
+    $urunler = $sorgu->fetchAll();
+}
 
 $toplamAdet = count($urunler);
 ?>
@@ -71,6 +88,8 @@ $toplamAdet = count($urunler);
     <div class="grid grid-auto">
         <?php foreach ($urunler as $urun):
             $gorsel = !empty($urun['GorselURL']) ? $urun['GorselURL'] : null;
+            $stok   = isset($urun['Stok']) ? (int)$urun['Stok'] : null;
+            $tukendi = ($stok !== null && $stok <= 0);
         ?>
         <div class="card">
             <a href="/eticaret/urun-detay.php?id=<?php echo $urun['UrunID']; ?>" style="display:block;">
@@ -91,9 +110,18 @@ $toplamAdet = count($urunler);
                         <?php echo htmlspecialchars($urun['Kategori']); ?>
                     </span>
                 <?php endif; ?>
+                <div style="margin-bottom:8px; font-size:.84rem; color:var(--muted);">
+                    ⭐ <?php echo number_format((float)$urun['OrtalamaPuan'], 1, ',', '.'); ?> / 5
+                    (<?php echo (int)$urun['YorumSayisi']; ?> yorum)
+                </div>
                 <div class="card__price"><?php echo number_format($urun['Fiyat'], 2, ',', '.'); ?> TL</div>
-                <a href="/eticaret/sepet_islem.php?islem=ekle&id=<?php echo $urun['UrunID']; ?>"
-                   class="btn btn-primary btn-full">🛒 Sepete Ekle</a>
+                <?php if ($tukendi): ?>
+                    <span class="tag tag-red" style="margin-bottom:10px; display:inline-block;">Tükendi</span>
+                    <button type="button" class="btn btn-dark btn-full" disabled style="opacity:.6; cursor:not-allowed;">Stokta Yok</button>
+                <?php else: ?>
+                    <a href="/eticaret/sepet_islem.php?islem=ekle&id=<?php echo $urun['UrunID']; ?>"
+                       class="btn btn-primary btn-full">🛒 Sepete Ekle</a>
+                <?php endif; ?>
             </div>
         </div>
         <?php endforeach; ?>

@@ -3,7 +3,7 @@ session_start();
 include '../baglanti.php';
 include '../includes/header.php';
 
-if (!isset($_SESSION['kullanici_id'])) { header("Location: /giris.php"); exit(); }
+if (!isset($_SESSION['kullanici_id']) || empty($_SESSION['admin'])) { header("Location: /eticaret/giris.php"); exit(); }
 
 if (isset($_GET['sil'])) {
     $sil_id = filter_input(INPUT_GET, 'sil', FILTER_VALIDATE_INT);

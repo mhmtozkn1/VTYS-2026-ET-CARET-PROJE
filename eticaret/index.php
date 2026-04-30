@@ -37,8 +37,13 @@ include 'includes/header.php';
             <div class="card__body">
                 <div class="card__title"><?php echo htmlspecialchars($urun['UrunAdi']); ?></div>
                 <div class="card__price"><?php echo number_format($urun['Fiyat'], 2, ',', '.'); ?> TL</div>
-                <a href="/eticaret/sepet_islem.php?islem=ekle&id=<?php echo $urun['UrunID']; ?>"
-                   class="btn btn-primary btn-full">🛒 Sepete Ekle</a>
+                <?php if (isset($urun['Stok']) && (int)$urun['Stok'] <= 0): ?>
+                    <span class="tag tag-red" style="margin-bottom:10px; display:inline-block;">Tükendi</span>
+                    <button type="button" class="btn btn-dark btn-full" disabled style="opacity:.6; cursor:not-allowed;">Stokta Yok</button>
+                <?php else: ?>
+                    <a href="/eticaret/sepet_islem.php?islem=ekle&id=<?php echo $urun['UrunID']; ?>"
+                       class="btn btn-primary btn-full">🛒 Sepete Ekle</a>
+                <?php endif; ?>
             </div>
         </div>
         <?php endwhile; ?>

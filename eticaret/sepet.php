@@ -6,6 +6,42 @@ include 'includes/header.php';
 $sepet   = $_SESSION['sepet'] ?? [];
 $toplam  = 0;
 $kalemler = [];
+$indirimTutari = 0;
+$kuponBilgi = null;
+$kuponHata = '';
+
+if (isset($_POST['kupon_uygula'])) {
+    $kod = strtoupper(trim($_POST['kupon_kodu'] ?? ''));
+    if ($kod === '') {
+        $kuponHata = "Kupon kodu boş olamaz.";
+    } else {
+        try {
+            $q = $db->prepare(
+                "SELECT * FROM Kuponlar
+                 WHERE Kod = ? AND Aktif = 1
+                 AND (BitisTarihi IS NULL OR BitisTarihi >= GETDATE())"
+            );
+            $q->execute([$kod]);
+            $kupon = $q->fetch();
+            if (!$kupon) {
+                $kuponHata = "Kupon kodu geçersiz veya süresi dolmuş.";
+            } else {
+                $_SESSION['kupon'] = [
+                    'Kod' => $kupon['Kod'],
+                    'IndirimTipi' => $kupon['IndirimTipi'],
+                    'Deger' => (float)$kupon['Deger'],
+                    'MinSepetTutari' => (float)($kupon['MinSepetTutari'] ?? 0)
+                ];
+            }
+        } catch (PDOException $e) {
+            $kuponHata = "Kupon sistemi henüz hazır değil (DB güncellemesi gerekebilir).";
+        }
+    }
+}
+
+if (isset($_POST['kupon_temizle'])) {
+    unset($_SESSION['kupon']);
+}
 
 // Sepet boş değilse ürünleri tek sorguda çek
 if (!empty($sepet)) {
@@ -19,14 +55,51 @@ if (!empty($sepet)) {
     }
     foreach ($sepet as $uid => $miktar) {
         if (isset($urunMap[$uid])) {
+            $stok = isset($urunMap[$uid]['Stok']) ? (int)$urunMap[$uid]['Stok'] : null;
+            if ($stok !== null && $miktar > $stok) {
+                $miktar = max(0, $stok);
+                if ($miktar === 0) {
+                    unset($_SESSION['sepet'][$uid]);
+                    continue;
+                }
+                $_SESSION['sepet'][$uid] = $miktar;
+                $_SESSION['sepet_mesaj'] = 'Bazı ürün adetleri mevcut stoklara göre güncellendi.';
+            }
             $kalemler[] = ['urun' => $urunMap[$uid], 'miktar' => $miktar];
             $toplam += $urunMap[$uid]['Fiyat'] * $miktar;
         }
     }
 }
+
+if (!empty($_SESSION['kupon'])) {
+    $kuponBilgi = $_SESSION['kupon'];
+    if ($toplam < (float)$kuponBilgi['MinSepetTutari']) {
+        $kuponHata = "Kupon için minimum sepet tutarı: " . number_format((float)$kuponBilgi['MinSepetTutari'], 2, ',', '.') . " TL";
+        $kuponBilgi = null;
+        unset($_SESSION['kupon']);
+    } else {
+        if ($kuponBilgi['IndirimTipi'] === 'yuzde') {
+            $indirimTutari = $toplam * ((float)$kuponBilgi['Deger'] / 100);
+        } else {
+            $indirimTutari = (float)$kuponBilgi['Deger'];
+        }
+        $indirimTutari = min($indirimTutari, $toplam);
+    }
+}
+
+$odenecekTutar = max(0, $toplam - $indirimTutari);
 ?>
 
 <h2 style="margin-bottom:28px;">🛒 Alışveriş Sepetim</h2>
+
+<?php if (!empty($_SESSION['sepet_mesaj'])): ?>
+    <div class="alert alert-info"><?php echo htmlspecialchars($_SESSION['sepet_mesaj']); ?></div>
+    <?php unset($_SESSION['sepet_mesaj']); ?>
+<?php endif; ?>
+
+<?php if ($kuponHata): ?>
+    <div class="alert alert-danger"><?php echo htmlspecialchars($kuponHata); ?></div>
+<?php endif; ?>
 
 <?php if (empty($kalemler)): ?>
     <div style="text-align:center; padding:80px 0; background:var(--surface); border:1px solid var(--border); border-radius:16px;">
@@ -59,6 +132,9 @@ if (!empty($sepet)) {
                 <div class="sepet-satir__info">
                     <div class="sepet-satir__ad"><?php echo htmlspecialchars($urun['UrunAdi']); ?></div>
                     <div class="sepet-satir__fiyat"><?php echo number_format($urun['Fiyat'], 2, ',', '.'); ?> TL / adet</div>
+                    <?php if (isset($urun['Stok'])): ?>
+                        <div class="text-muted" style="font-size:.8rem;">Stok: <?php echo (int)$urun['Stok']; ?></div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Miktar Kontrolü -->
@@ -66,8 +142,12 @@ if (!empty($sepet)) {
                     <a href="/eticaret/sepet_islem.php?islem=azalt&id=<?php echo $urun['UrunID']; ?>"
                        class="qty-btn">−</a>
                     <span class="qty-val"><?php echo $miktar; ?></span>
-                    <a href="/eticaret/sepet_islem.php?islem=ekle&id=<?php echo $urun['UrunID']; ?>"
-                       class="qty-btn">+</a>
+                    <?php if (isset($urun['Stok']) && (int)$urun['Stok'] <= $miktar): ?>
+                        <span class="qty-btn" style="opacity:.5; cursor:not-allowed;">+</span>
+                    <?php else: ?>
+                        <a href="/eticaret/sepet_islem.php?islem=ekle&id=<?php echo $urun['UrunID']; ?>"
+                           class="qty-btn">+</a>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Ara Toplam -->
@@ -96,6 +176,13 @@ if (!empty($sepet)) {
         <!-- Özet -->
         <div style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px; position:sticky; top:88px;">
             <h3 style="margin-bottom:20px; font-size:1.1rem;">Sipariş Özeti</h3>
+            <form method="POST" style="display:flex; gap:8px; margin-bottom:18px;">
+                <input type="text" name="kupon_kodu" class="form-control" placeholder="Kupon kodu" style="font-size:.85rem;">
+                <button type="submit" name="kupon_uygula" class="btn btn-dark btn-sm">Uygula</button>
+                <?php if ($kuponBilgi): ?>
+                    <button type="submit" name="kupon_temizle" class="btn btn-ghost btn-sm">Temizle</button>
+                <?php endif; ?>
+            </form>
 
             <?php foreach ($kalemler as $k): ?>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:.88rem; color:var(--muted);">
@@ -106,10 +193,17 @@ if (!empty($sepet)) {
 
             <hr style="border:none; border-top:1px solid var(--border); margin:16px 0;">
 
+            <?php if ($kuponBilgi): ?>
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:var(--success);">
+                    <span>Kupon (<?php echo htmlspecialchars($kuponBilgi['Kod']); ?>)</span>
+                    <span>-<?php echo number_format($indirimTutari, 2, ',', '.'); ?> TL</span>
+                </div>
+            <?php endif; ?>
+
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                <span style="font-family:'Syne',sans-serif; font-weight:700; font-size:1.1rem;">Toplam</span>
+                <span style="font-family:'Syne',sans-serif; font-weight:700; font-size:1.1rem;">Ödenecek</span>
                 <span style="font-family:'Syne',sans-serif; font-weight:800; font-size:1.6rem; color:var(--success);">
-                    <?php echo number_format($toplam, 2, ',', '.'); ?> TL
+                    <?php echo number_format($odenecekTutar, 2, ',', '.'); ?> TL
                 </span>
             </div>
 
