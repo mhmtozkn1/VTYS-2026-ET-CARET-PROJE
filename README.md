@@ -1,4 +1,5 @@
 -TR
+
 TeknoShop — PHP & MS SQL Server ile geliştirilmiş e-ticaret web uygulaması.
 FSMVÜ Bilgisayar Programcılığı - Veritabanı Yönetim Sistemleri Dersi 2025-2026 Bahar Dönemi Projesi.
 
