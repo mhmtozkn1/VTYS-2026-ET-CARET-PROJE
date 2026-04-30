@@ -5,16 +5,16 @@ include '../includes/header.php';
 
 if (!isset($_SESSION['kullanici_id'])) { header("Location: /giris.php"); exit(); }
 
-// Silme işlemi
 if (isset($_GET['sil'])) {
-    $silId = filter_input(INPUT_GET, 'sil', FILTER_VALIDATE_INT);
-    if ($silId) {
-        $db->prepare("DELETE FROM Urunler WHERE UrunID = ?")->execute([$silId]);
+    $sil_id = filter_input(INPUT_GET, 'sil', FILTER_VALIDATE_INT);
+    if ($sil_id) {
+        // Önce sipariş detaylarından sil, sonra ürünü sil
+        $db->prepare("DELETE FROM SiparisDetay WHERE UrunID = ?")->execute([$sil_id]);
+        $db->prepare("DELETE FROM Urunler WHERE UrunID = ?")->execute([$sil_id]);
     }
-    header("Location: /eticaret/admin/urun_listesi.php?durum=silindi");
+    header("Location: urun_listesi.php?durum=silindi");
     exit();
 }
-
 $urunler = $db->query("SELECT * FROM Urunler ORDER BY UrunID DESC")->fetchAll();
 ?>
 
