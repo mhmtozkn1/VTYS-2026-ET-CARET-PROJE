@@ -18,3 +18,13 @@ Developed as a final project for the Database Management Systems course at FSMV�
 
 Features: user authentication, product listing & search, shopping cart, order management, admin dashboard.
 Stack: PHP 8 · MS SQL Server 2022 · PDO · HTML5/CSS3 · XAMPP
+
+Nasıl çalıştırılır? 
+
+1- Xampp programını bilgisayarına kurunuz.
+
+2- Bilgisayarınızda xampp dosya yoluna giderek /htdocsa giriniz. 
+
+3- İçine eticaret dosyasını atınız.
+
+4- Tarayıcınızda localhost/eticaret/index.php yazarak siteye ulaşabilirsiniz.
