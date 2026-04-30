@@ -1,0 +1,53 @@
+USE EticaretDB;
+GO
+
+-- Yorumlar tablosu
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='Yorumlar')
+    CREATE TABLE Yorumlar (
+        YorumID     INT IDENTITY(1,1) PRIMARY KEY,
+        UrunID      INT NOT NULL,
+        KullaniciID INT NOT NULL,
+        Puan        INT NOT NULL CHECK (Puan BETWEEN 1 AND 5),
+        Yorum       NVARCHAR(MAX) NULL,
+        Tarih       DATETIME DEFAULT GETDATE(),
+        FOREIGN KEY (UrunID)      REFERENCES Urunler(UrunID),
+        FOREIGN KEY (KullaniciID) REFERENCES Kullanicilar(KullaniciID)
+    );
+GO
+
+-- Kuponlar tablosu
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='Kuponlar')
+    CREATE TABLE Kuponlar (
+        KuponID    INT IDENTITY(1,1) PRIMARY KEY,
+        Kod        NVARCHAR(50)   NOT NULL UNIQUE,
+        IndirimTur NVARCHAR(20)   NOT NULL DEFAULT 'yuzde', -- 'yuzde' veya 'sabit'
+        Deger      DECIMAL(10,2)  NOT NULL,
+        MinTutar   DECIMAL(10,2)  NOT NULL DEFAULT 0,
+        Aktif      BIT            NOT NULL DEFAULT 1
+    );
+GO
+
+-- Kuponlar tablosuna örnek veri
+IF NOT EXISTS (SELECT 1 FROM Kuponlar WHERE Kod = N'HOSGELDIN')
+    INSERT INTO Kuponlar (Kod, IndirimTur, Deger, MinTutar) VALUES
+    (N'HOSGELDIN', 'yuzde', 10, 200),
+    (N'INDIRIM50', 'sabit', 50, 300);
+GO
+
+-- Urunler tablosuna ek sütunlar (yoksa ekle)
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Urunler' AND COLUMN_NAME='Kategori')
+    ALTER TABLE Urunler ADD Kategori NVARCHAR(100) NULL;
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Urunler' AND COLUMN_NAME='GorselURL')
+    ALTER TABLE Urunler ADD GorselURL NVARCHAR(500) NULL;
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Urunler' AND COLUMN_NAME='Stok')
+    ALTER TABLE Urunler ADD Stok INT NOT NULL DEFAULT 0;
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Urunler' AND COLUMN_NAME='Aciklama')
+    ALTER TABLE Urunler ADD Aciklama NVARCHAR(MAX) NULL;
+GO
+
+-- Siparisler tablosuna kupon sütunları (yoksa ekle)
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Siparisler' AND COLUMN_NAME='KuponKod')
+    ALTER TABLE Siparisler ADD KuponKod NVARCHAR(50) NULL;
+IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Siparisler' AND COLUMN_NAME='IndirimTutar')
+    ALTER TABLE Siparisler ADD IndirimTutar DECIMAL(10,2) NOT NULL DEFAULT 0;
+GO
