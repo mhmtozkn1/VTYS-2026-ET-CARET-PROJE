@@ -1,4 +1,4 @@
-# Eticaret
+# Eticaret (PHP × SQL Server)
 
 TeknoShop — PHP & MS SQL Server ile geliştirilmiş e-ticaret web uygulaması.
 FSMVÜ Bilgisayar Programcılığı - Veritabanı Yönetim Sistemleri Dersi 2025-2026 Bahar Dönemi Projesi.
@@ -53,55 +53,52 @@ Teknolojiler: PHP 8, MS SQL Server 2022, PDO, HTML5, CSS3, XAMPP
 
 ---
 
-## Kurulum Adımları
+### Ortam kısa özeti
 
-### 1. Dosyaları Yerleştir
+PHP 8 ve **PDO + `sqlsrv`** ile SQL Server’a bağlanırsınız. Apache’yi XAMMPP’tan veya benzerinden kullanabilirsiniz. Microsoft’un PHP için SQL Server sürücü paketinin (`sqlsrv`, `pdo_sqlsrv`) yüklü ve `php.ini` içinde açılmış olması şart — ayrıntılar için resmi dökümantasyon: [Microsoft Drivers for PHP for SQL Server](https://docs.microsoft.com/sql/connect/php/microsoft-php-driver-for-sql-server).
 
-Projeyi web sunucunuzun belge köküne kopyalayın. XAMPP için örnek: `htdocs\eticaret`.
+Veritabanı adı kodda **`EticaretDB`** olarak geçer; MySQL / MariaDB şeması yoktur.
 
-### 2. PHP SQL Server uzantılarını kur
+---
 
-`pdo_sqlsrv` ve `sqlsrv` uzantılarının yüklü ve `php.ini` içinde aktif olduğundan emin olun. Sürüm, PHP’nin thread safety (TS/NTS) ve mimariye (x64) uygun olmalıdır.
+### İlk kurulum sırasında dokunacağınız yerler
 
-### 3. Veritabanını hazırla
+| Konu | Dosya / yer |
+|------|-------------|
+| Sunucu adı ve veritabanı | `baglanti.php` → `$serverName`, `$database` |
+| İsteğe bağlı SQL login | Aynı dosyada yorumlu satırdaki PDO örneği |
+| Site kök adresi | Tüm kodda kullanılan `/eticaret/` öneki — klasörü farklı isimde barındırıyorsanız arama ile güncellenmelidir |
 
-- SQL Server’da **`EticaretDB`** adında bir veritabanı oluşturun.
-- Tablolarınızı (ör. `Kullanicilar`, `Urunler`, `Siparisler`, `RememberTokens`, sepet ile ilgili tablolar) oluşturacak ana şema script’inizi çalıştırın *(bu repoda tam kurulum şeması yoksa kendi DDL dosyanızı ekleyebilirsiniz)*.
-- Görsel güncelleme vb. için proje içindeki `veritabani_guncelle.sql` dosyasını, şema hazır olduktan **sonra** ve amacına uygun şekilde çalıştırın.
-
-### 4. Bağlantı ayarını güncelle
-
-`baglanti.php` dosyasını açın. Sunucu adını kendi SQL Server örneğinize göre değiştirin:
+Örnek bağlantı parçası (sunucuyu kendininkine çevir):
 
 ```php
-$serverName = "DESKTOP-ELEOOQT"; // ← Kendi SERVER\INSTANCE veya adresiniz
+$serverName = "BILGISAYARINIZ\\SQLEXPRESS";
 $database   = "EticaretDB";
 ```
 
-SQL Server kimlik doğrulaması kullanacaksanız, dosyadaki yorum satırındaki PDO satırını açıp kullanıcı adı ve şifreyi doldurun; Windows Authentication kullanıyorsanız mevcut `TrustServerCertificate=true` satırı ile devam edebilirsiniz.
-
-### 5. Uygulama adresi
-
-Proje `http://localhost/eticaret/` altında çalışacak şekilde yönlendirmeler kullanır. Farklı bir klasör adı veya sanal host kullanıyorsanız, PHP dosyalarındaki `/eticaret/` taban yolunu kendi ortamınıza göre güncellemeniz gerekir.
-
-### 6. Tarayıcıda aç
-
-```
-http://localhost/eticaret/
-```
+Windows kimlik doğrulaması varsayılan yoldur; `sa` vb. kullanacaksanız `baglanti.php` içindeki alternatif PDO satırını etkinleştirip kimlik bilgilerini yazın.
 
 ---
 
-## Roller ve yönetici
+### Veritabanı
 
-- **Yönetici paneli:** `Kullanicilar` tablosunda `KullaniciAdi` değeri tam olarak `admin` olan kullanıcı giriş yaptığında yönetim paneline erişir (`/eticaret/admin/`).
-- **Müşteri:** `kayit.php` ile kayıt olup `giris.php` üzerinden e-posta ve şifre ile giriş yapılır.
-
-Demo hesap bilgisi repoda sabitlenmemişse; ilk yönetici kullanıcıyı veritabanında `KullaniciAdi = 'admin'` olacak şekilde oluşturup güvenli bir şifre atayın.
+1. SQL Server üzerinde `EticaretDB` oluşturun.
+2. Uygulamanın beklediği tabloları (örn. `Kullanicilar`, `Urunler`, `Siparisler`, `RememberTokens`, sepet ile ilgili yapılar) kendi DDL script’inizle kurun — bu pakette eksiksiz “sıfırdan kurulum” SQL’i yoksa bunu eklemeniz gerekir.
+3. `veritabani_guncelle.sql` mevcut veriye yönelik güncelleme içerir; şema oturduktan ve uygun olduğunda çalıştırın.
 
 ---
 
-## Teknik bilgiler
+### Dosyalar (mantıksal gruplar)
+
+**Mağaza ve hesap:** `index.php`, `urunler.php`, `urun-detay.php`, `sepet.php`, `sepet_islem.php`, `siparis.php`, `siparislerim.php`, `giris.php`, `kayit.php`, `cikis.php`
+
+**Yönetim:** `admin/index.php`, `admin/urun_*.php`, `admin/siparisler.php`, `admin/kullanicilar.php`
+
+**Ortak:** `includes/header.php`, `includes/footer.php`, `css/style.css`, `baglanti.php`
+
+---
+
+### Yerel adres
 
 | Bileşen        | Teknoloji                          |
 | -------------- | ---------------------------------- |
@@ -113,13 +110,10 @@ Demo hesap bilgisi repoda sabitlenmemişse; ilk yönetici kullanıcıyı veritab
 
 ---
 
-## Sık karşılaşılan hatalar
+### Küçük bir sorun giderme notu
 
-**“could not find driver” / PDO sqlsrv hatası:**  
-PHP tarafında SQL Server sürücüleri kurulu değil veya `php.ini`'de aktif değil. Yukarıdaki Microsoft PHP driver kurulumunu kontrol edin.
+- **PDO / driver ile ilgili hata:** Eksik `sqlsrv` veya yanlış PHP sürümü eşlemesi (TS/NTS, x86/x64) en sık nedendir.
+- **Bağlantı kurulamıyor:** SSMS’te kullandığınız tam sunucu dizesini `baglanti.php` ile karşılaştırın; named instance kullanıyorsanız `SUNUCU\ORNEK` biçimi ve gerekli servisler (TCP, Browser) sık sık gözden kaçar.
+- **Sayfa bulunamadı / yanlış yönlendirme:** Sabit `/eticaret/` yolu ile gerçek deployment yolu uyuşmuyor olabilir.
 
-**Bağlantı reddedildi / sunucuya ulaşılamıyor:**  
-`baglanti.php` içindeki `$serverName` değerini SQL Server Configuration Manager veya SSMS’te bağlandığınız sunucu adıyla eşleştirin. TCP/IP etkin mi ve gerekiyorsa SQL Browser servisi açık mı kontrol edin.
-
-**403 / 404 (yanlış yol):**  
-Apache’de `eticaret` klasör adı ve `DocumentRoot` ile uyumlu olmalı; kod içindeki `/eticaret/` önekleri farklı bir alt yol kullanıyorsanız güncellenmelidir.
+İlk admin kullanıcıyı elle ekleyebilir veya kodunuz uygunsa `kayit` sonrası veritabanında `KullaniciAdi` değerini `admin` yapabilirsiniz; giriş e-posta tabanlıdır (`giris.php`).
